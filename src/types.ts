@@ -11,6 +11,19 @@ export type ChildProfile = {
   id: string
   name: string
   emoji: string
+  photoDataUrl?: string | null
+}
+
+export type VoiceSettings = {
+  enabled: boolean
+  voiceURI: string
+  rate: number
+  pitch: number
+}
+
+export type ParentSettings = {
+  children: ChildProfile[]
+  voice: VoiceSettings
 }
 
 export type CompletionMap = Record<string, string>
