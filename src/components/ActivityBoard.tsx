@@ -15,7 +15,6 @@ const sections: Array<{
 
 type Props = {
   profile: ChildProfile
-  photoDataUrl: string | null
   completions: CompletionMap
   celebration: { activityId: string; message: string } | null
   onComplete: (activity: Activity) => void
@@ -24,7 +23,6 @@ type Props = {
 
 export function ActivityBoard({
   profile,
-  photoDataUrl,
   completions,
   celebration,
   onComplete,
@@ -41,8 +39,8 @@ export function ActivityBoard({
           onClick={onBack}
           aria-label="Choose profile"
         >
-          {photoDataUrl ? (
-            <img src={photoDataUrl} alt="" />
+          {profile.photoDataUrl ? (
+            <img src={profile.photoDataUrl} alt="" />
           ) : (
             <span aria-hidden="true">{profile.emoji}</span>
           )}
