@@ -1,0 +1,90 @@
+-- Phase 2: multi-parent families, per-child routines, triggers and resilient timers.
+create table if not exists public.families (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default 'My Family',
+  created_at timestamptz not null default now()
+);
+create table if not exists public.family_members (
+  family_id uuid not null references public.families(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'parent' check (role in ('parent','guardian')),
+  created_at timestamptz not null default now(),
+  primary key (family_id,user_id)
+);
+create table if not exists public.children (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families(id) on delete cascade,
+  name text not null,
+  emoji text not null default '🧒',
+  public_key uuid not null default gen_random_uuid() unique,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.routine_sections (
+  id uuid primary key default gen_random_uuid(),
+  child_id uuid not null references public.children(id) on delete cascade,
+  label text not null,
+  icon text not null default '⭐',
+  sort_order integer not null default 0,
+  enabled boolean not null default true
+);
+create table if not exists public.routine_activities (
+  id uuid primary key default gen_random_uuid(),
+  child_id uuid not null references public.children(id) on delete cascade,
+  section_id uuid not null references public.routine_sections(id) on delete cascade,
+  label text not null,
+  emoji text not null default '⭐',
+  activity_type text not null default 'normal' check (activity_type in ('normal','recurring','timed','scheduled','triggered','checklist')),
+  sort_order integer not null default 0,
+  duration_minutes integer,
+  daily_limit_minutes integer,
+  schedule_time time,
+  days smallint[],
+  trigger_after_id uuid references public.routine_activities(id) on delete set null,
+  reminder_minutes integer[] not null default array[5,1],
+  enabled boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.timer_sessions (
+  id uuid primary key default gen_random_uuid(),
+  child_id uuid not null references public.children(id) on delete cascade,
+  activity_id uuid not null references public.routine_activities(id) on delete cascade,
+  started_at timestamptz not null,
+  ends_at timestamptz not null,
+  finished_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists routine_sections_child_order_idx on public.routine_sections(child_id,sort_order);
+create index if not exists routine_activities_child_section_order_idx on public.routine_activities(child_id,section_id,sort_order);
+create index if not exists timer_sessions_child_started_idx on public.timer_sessions(child_id,started_at desc);
+
+alter table public.families enable row level security;
+alter table public.family_members enable row level security;
+alter table public.children enable row level security;
+alter table public.routine_sections enable row level security;
+alter table public.routine_activities enable row level security;
+alter table public.timer_sessions enable row level security;
+
+create or replace function public.is_family_member(target_family uuid)
+returns boolean language sql stable security definer set search_path=public
+as $$ select exists(select 1 from public.family_members fm where fm.family_id=target_family and fm.user_id=(select auth.uid())); $$;
+
+drop policy if exists "members read families" on public.families;
+create policy "members read families" on public.families for select to authenticated using (public.is_family_member(id));
+drop policy if exists "users create families" on public.families;
+create policy "users create families" on public.families for insert to authenticated with check (true);
+drop policy if exists "members manage family memberships" on public.family_members;
+create policy "members manage family memberships" on public.family_members for all to authenticated using (user_id=(select auth.uid()) or public.is_family_member(family_id)) with check (user_id=(select auth.uid()) or public.is_family_member(family_id));
+drop policy if exists "members manage children" on public.children;
+create policy "members manage children" on public.children for all to authenticated using (public.is_family_member(family_id)) with check (public.is_family_member(family_id));
+drop policy if exists "members manage sections" on public.routine_sections;
+create policy "members manage sections" on public.routine_sections for all to authenticated
+using (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)))
+with check (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)));
+drop policy if exists "members manage activities" on public.routine_activities;
+create policy "members manage activities" on public.routine_activities for all to authenticated
+using (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)))
+with check (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)));
+drop policy if exists "members manage timers" on public.timer_sessions;
+create policy "members manage timers" on public.timer_sessions for all to authenticated
+using (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)))
+with check (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)));
