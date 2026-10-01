@@ -10,6 +10,7 @@ import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSessio
 
 type Screen='profiles'|'day'|'settings'
 const timerKey=(childId:string)=>`project-kavleen:timer:${childId}`
+const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${childId}:${activityId}:${new Date().toISOString().slice(0,10)}`
 
 export default function App(){
  const [screen,setScreen]=useState<Screen>('profiles')
@@ -40,11 +41,15 @@ export default function App(){
  },[selectedProfile,completions,settings.voice])
  const startTimer=(activity:Activity)=>{
   if(!selectedProfile)return
-  const duration=Math.max(1,activity.durationMinutes??30),startedAt=new Date(),endsAt=new Date(startedAt.getTime()+duration*60000)
+  const requested=Math.max(1,activity.durationMinutes??30)
+  const used=Number(localStorage.getItem(usageKey(selectedProfile.id,activity.id))??0)
+  const remaining=activity.dailyLimitMinutes ? Math.max(0,activity.dailyLimitMinutes-used) : requested
+  if(activity.dailyLimitMinutes && remaining<=0){speak(`Your ${activity.label} time is all used for today.`,settings.voice);window.alert(`${activity.label}: today’s ${activity.dailyLimitMinutes} minute allowance is finished.`);return}
+  const duration=Math.min(requested,remaining),startedAt=new Date(),endsAt=new Date(startedAt.getTime()+duration*60000)
   const session={activityId:activity.id,startedAt:startedAt.toISOString(),endsAt:endsAt.toISOString(),durationMinutes:duration}
   localStorage.setItem(timerKey(selectedProfile.id),JSON.stringify(session));setTimer(session);speak(`${activity.label} started for ${duration} minutes.`,settings.voice)
  }
- const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity)void completeActivity(activity)},[selectedProfile,timer,completeActivity])
+ const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity){const key=usageKey(selectedProfile.id,activity.id);localStorage.setItem(key,String(Number(localStorage.getItem(key)??0)+timer.durationMinutes));void completeActivity(activity)}},[selectedProfile,timer,completeActivity])
 
  if(screen==='settings')return <ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen('profiles')}/>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>setScreen('settings')}/>
