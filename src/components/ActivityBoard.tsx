@@ -9,7 +9,7 @@ type Props = {
 export function ActivityBoard({ profile, completions, celebration, onComplete, onStartTimer, onBack }: Props) {
   const sections=(profile.sections ?? []).slice().sort((a,b)=>a.order-b.order)
   const activities=profile.activities ?? []
-  const visible=activities.filter(a=>a.enabled!==false)
+  const visible=activities.filter(a=>a.enabled!==false && (a.type!=='triggered' || !a.triggerAfterId || Boolean(completions[a.triggerAfterId])))
   const completeCount=visible.filter(a=>Boolean(completions[a.id])).length
   return <main className="day-screen">
     <header className="day-header">
