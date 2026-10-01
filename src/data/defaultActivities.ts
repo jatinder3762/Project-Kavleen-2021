@@ -1,10 +1,4 @@
-import type { Activity, ChildProfile } from '../types'
-
-export const childProfile: ChildProfile = {
-  id: 'kavleen',
-  name: 'Kavleen',
-  emoji: '👧',
-}
+import type { Activity } from '../types'
 
 export const defaultActivities: Activity[] = [
   { id: 'wake-up', emoji: '🛏️', label: 'Wake up', section: 'morning' },
