@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { ActivityBoard } from './components/ActivityBoard'
+import { ParentSettingsPage } from './components/ParentSettingsPage'
 import { ProfilePicker } from './components/ProfilePicker'
-import { childProfile, defaultActivities } from './data/defaultActivities'
+import { defaultActivities } from './data/defaultActivities'
 import { loadTodayCompletions, saveCompletion } from './lib/persistence'
+import { loadParentSettings, saveParentSettings } from './lib/settings'
 import { pickEncouragement, speak } from './lib/speech'
-import type { Activity, CompletionMap } from './types'
+import type {
+  Activity,
+  ChildProfile,
+  CompletionMap,
+  ParentSettings,
+} from './types'
 
-const PHOTO_KEY = 'project-kavleen:profile-photo:kavleen'
+type Screen = 'profiles' | 'day' | 'settings'
 
 export default function App() {
-  const [started, setStarted] = useState(false)
-  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(() =>
-    localStorage.getItem(PHOTO_KEY),
+  const [screen, setScreen] = useState<Screen>('profiles')
+  const [settings, setSettings] = useState<ParentSettings>(() =>
+    loadParentSettings(),
   )
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
   const [completions, setCompletions] = useState<CompletionMap>({})
   const [celebration, setCelebration] = useState<{
     activityId: string
@@ -20,9 +28,8 @@ export default function App() {
   } | null>(null)
   const celebrationTimer = useRef<number | null>(null)
 
-  useEffect(() => {
-    loadTodayCompletions(childProfile.id).then(setCompletions)
-  }, [])
+  const selectedProfile =
+    settings.children.find((child) => child.id === selectedChildId) ?? null
 
   useEffect(() => {
     return () => {
@@ -32,23 +39,24 @@ export default function App() {
     }
   }, [])
 
-  const startDay = () => {
-    setStarted(true)
-    speak(`Hi ${childProfile.name}! Let's have a happy day!`)
+  const startDay = async (profile: ChildProfile) => {
+    setSelectedChildId(profile.id)
+    setCompletions(await loadTodayCompletions(profile.id))
+    setScreen('day')
+    speak(`Hi ${profile.name}! Let's have a happy day!`, settings.voice)
   }
 
-  const savePhoto = (dataUrl: string) => {
-    setPhotoDataUrl(dataUrl)
-    try {
-      localStorage.setItem(PHOTO_KEY, dataUrl)
-    } catch {
-      // Some browsers may reject a large localStorage entry.
-    }
+  const updateSettings = (nextSettings: ParentSettings) => {
+    setSettings(nextSettings)
+    saveParentSettings(nextSettings)
+    setScreen('profiles')
   }
 
   const completeActivity = async (activity: Activity) => {
+    if (!selectedProfile) return
+
     if (completions[activity.id]) {
-      speak('Already done! Great job!')
+      speak('Already done! Great job!', settings.voice)
       return
     }
 
@@ -60,7 +68,7 @@ export default function App() {
       [activity.id]: completedAt,
     }))
     setCelebration({ activityId: activity.id, message })
-    speak(message)
+    speak(message, settings.voice)
 
     if (celebrationTimer.current) {
       window.clearTimeout(celebrationTimer.current)
@@ -70,33 +78,48 @@ export default function App() {
       setCelebration(null)
     }, 1800)
 
-    await saveCompletion(childProfile.id, activity.id, completedAt)
+    await saveCompletion(selectedProfile.id, activity.id, completedAt)
 
     const nextCount = Object.keys(completions).length + 1
     if (nextCount === defaultActivities.length) {
-      window.setTimeout(() => speak('Amazing! You finished your whole happy day!'), 2100)
+      window.setTimeout(
+        () =>
+          speak(
+            'Amazing! You finished your whole happy day!',
+            settings.voice,
+          ),
+        2100,
+      )
     }
   }
 
-  if (!started) {
+  if (screen === 'settings') {
+    return (
+      <ParentSettingsPage
+        settings={settings}
+        onSave={updateSettings}
+        onCancel={() => setScreen('profiles')}
+      />
+    )
+  }
+
+  if (screen === 'profiles' || !selectedProfile) {
     return (
       <ProfilePicker
-        profile={childProfile}
-        photoDataUrl={photoDataUrl}
+        profiles={settings.children}
         onSelect={startDay}
-        onPhotoSelected={savePhoto}
+        onOpenSettings={() => setScreen('settings')}
       />
     )
   }
 
   return (
     <ActivityBoard
-      profile={childProfile}
-      photoDataUrl={photoDataUrl}
+      profile={selectedProfile}
       completions={completions}
       celebration={celebration}
       onComplete={completeActivity}
-      onBack={() => setStarted(false)}
+      onBack={() => setScreen('profiles')}
     />
   )
 }
