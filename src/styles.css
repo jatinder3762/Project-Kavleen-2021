@@ -856,3 +856,34 @@ button:focus-visible {
     flex: 1;
   }
 }
+
+/* Phase 2 routine builder */
+.activity-main-button{appearance:none;border:0;background:transparent;color:inherit;width:100%;min-height:160px;padding:14px 12px 20px;display:grid;grid-template-rows:1fr auto auto;justify-items:center;align-items:center;gap:7px;cursor:pointer}
+.activity-card{padding:0;display:block;overflow:visible}
+.activity-meta{font-size:.78rem;font-weight:850;color:#756e86}
+.routine-panel{overflow:hidden}
+.routine-builder{display:grid;gap:20px}
+.routine-library{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:16px;border-radius:20px;background:#f7f5ff}
+.routine-library h3{margin:0 0 4px}.routine-library p{margin:0;color:#756e86}
+.library-chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.library-chips button,.add-section-card{border:2px solid #e1ddec;background:#fff;border-radius:14px;padding:9px 12px;font-weight:850;cursor:pointer}
+.routine-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:start}
+.routine-column{min-width:0;background:#fbfafc;border:2px solid #efecf4;border-radius:20px;padding:12px}
+.routine-section-title{display:grid;grid-template-columns:48px 1fr;gap:6px;margin-bottom:10px}
+.routine-section-title input,.activity-editor input,.activity-editor select{min-width:0;width:100%;min-height:42px;border:2px solid #ddd8e8;border-radius:12px;background:#fff;padding:7px 9px;font:inherit}
+.routine-section-title input:first-child{text-align:center;font-size:1.25rem}
+.routine-dropzone{display:grid;gap:8px;min-height:70px}
+.routine-card{display:grid;grid-template-columns:32px 36px minmax(0,1fr) auto;align-items:center;gap:5px;padding:8px;background:#fff;border:2px solid #ece8f2;border-radius:15px}
+.drag-handle{border:0;background:transparent;cursor:grab;color:#8b849a;font-size:1.1rem}
+.routine-emoji{font-size:1.6rem}.routine-card-main{border:0;background:transparent;text-align:left;min-width:0;cursor:pointer;color:inherit}.routine-card-main strong,.routine-card-main small{display:block}.routine-card-main small{color:#7b748b;margin-top:2px}
+.move-buttons{display:grid;gap:3px}.move-buttons button{width:30px;height:28px;border:0;border-radius:8px;background:#f1eef8;cursor:pointer}.move-buttons button:disabled{opacity:.3}
+.activity-editor{grid-column:1/-1;display:grid;gap:9px;padding:10px;margin-top:4px;border-top:2px solid #f0edf5}.activity-editor label{display:grid;gap:4px;font-size:.82rem;font-weight:850}
+.empty-routine{color:#9a94a5;text-align:center;font-weight:750}
+.add-section-card{min-height:70px;border-style:dashed}
+.timer-overlay{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:18px;background:rgba(42,37,61,.48);backdrop-filter:blur(7px)}
+.timer-card{width:min(430px,100%);background:#fff;border-radius:34px;padding:26px;text-align:center;box-shadow:0 25px 70px rgba(25,20,45,.25)}
+.timer-card h2{margin:5px 0 18px;font-size:2rem}.timer-emoji{font-size:4.5rem}
+.timer-ring{width:min(230px,70vw);aspect-ratio:1;border-radius:50%;margin:0 auto 18px;display:grid;place-items:center;padding:14px}
+.timer-ring>div{width:100%;height:100%;border-radius:50%;background:#fff;display:grid;place-content:center}
+.timer-ring strong{font-size:clamp(2.5rem,12vw,4rem);line-height:1}.timer-ring span{margin-top:6px;color:#756e86;font-weight:800}
+@media(max-width:650px){.routine-library{display:grid}.library-chips{justify-content:flex-start}.routine-columns{grid-template-columns:1fr}.routine-card{grid-template-columns:30px 34px minmax(0,1fr) auto}}
