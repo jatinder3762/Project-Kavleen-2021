@@ -44,7 +44,7 @@ export default function App(){
   const session={activityId:activity.id,startedAt:startedAt.toISOString(),endsAt:endsAt.toISOString(),durationMinutes:duration}
   localStorage.setItem(timerKey(selectedProfile.id),JSON.stringify(session));setTimer(session);speak(`${activity.label} started for ${duration} minutes.`,settings.voice)
  }
- const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));if(activity)void completeActivity(activity)},[selectedProfile,timer,completeActivity])
+ const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity)void completeActivity(activity)},[selectedProfile,timer,completeActivity])
 
  if(screen==='settings')return <ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen('profiles')}/>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>setScreen('settings')}/>
