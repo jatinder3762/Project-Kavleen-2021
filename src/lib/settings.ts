@@ -1,21 +1,18 @@
 import { cloneDefaultRoutine } from '../data/defaultActivities'
-import type { ChildProfile, ParentSettings } from '../types'
+import type { ChildProfile, ParentSettings, VoiceSettings } from '../types'
 
 const SETTINGS_KEY = 'project-kavleen:parent-settings'
-const LEGACY_PHOTO_KEY = 'project-kavleen:profile-photo:kavleen'
 
-function withRoutine(child: ChildProfile): ChildProfile {
-  const defaults = cloneDefaultRoutine()
-  return {
-    ...child,
-    sections: child.sections?.length ? child.sections : defaults.sections,
-    activities: child.activities?.length ? child.activities : defaults.activities,
-  }
+export const defaultVoiceSettings: VoiceSettings = {
+  enabled: true,
+  voiceURI: '',
+  rate: 0.9,
+  pitch: 1.15,
 }
 
-export const defaultParentSettings: ParentSettings = {
-  children: [withRoutine({ id: 'kavleen', name: 'Kavleen', emoji: '👧', photoDataUrl: null })],
-  voice: { enabled: true, voiceURI: '', rate: 0.9, pitch: 1.15 },
+export const emptyParentSettings: ParentSettings = {
+  children: [],
+  voice: defaultVoiceSettings,
 }
 
 export function loadParentSettings(): ParentSettings {
@@ -24,25 +21,27 @@ export function loadParentSettings(): ParentSettings {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<ParentSettings>
       return {
-        children: (parsed.children?.length ? parsed.children : defaultParentSettings.children).map(withRoutine),
-        voice: { ...defaultParentSettings.voice, ...(parsed.voice ?? {}) },
+        children: parsed.children ?? [],
+        voice: { ...defaultVoiceSettings, ...(parsed.voice ?? {}) },
       }
     }
-    const legacyPhoto = localStorage.getItem(LEGACY_PHOTO_KEY)
-    if (legacyPhoto) return { ...defaultParentSettings, children: [{ ...defaultParentSettings.children[0], photoDataUrl: legacyPhoto }] }
-  } catch { /* use safe defaults */ }
-  return defaultParentSettings
+  } catch { /* use safe empty settings */ }
+  return emptyParentSettings
 }
 
 export function saveParentSettings(settings: ParentSettings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
 }
 
+export function clearLocalParentSettings() {
+  localStorage.removeItem(SETTINGS_KEY)
+}
+
 export function createChildProfile(index: number): ChildProfile {
   const routine = cloneDefaultRoutine()
   return {
     id: `child-${Date.now()}-${index}`,
-    name: `Child ${index}`,
+    name: index === 1 ? '' : `Child ${index}`,
     emoji: index % 2 === 0 ? '🧒' : '👧',
     photoDataUrl: null,
     ...routine,
