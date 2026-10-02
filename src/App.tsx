@@ -3,6 +3,8 @@ import { ActivityBoard } from './components/ActivityBoard'
 import { ChildCalendar } from './components/ChildCalendar'
 import { ParentSettingsPage } from './components/ParentSettingsPage'
 import { ParentGate } from './components/ParentGate'
+import { ParentAuth } from './components/ParentAuth'
+import { supabase } from './lib/auth'
 import { ProfilePicker } from './components/ProfilePicker'
 import { TimerOverlay } from './components/TimerOverlay'
 import { loadCompletions, localDateKey, saveCompletion } from './lib/persistence'
@@ -11,7 +13,7 @@ import { loadFamilySettings, saveFamilySettings } from './lib/familyRepository'
 import { pickEncouragement, speak } from './lib/speech'
 import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSession } from './types'
 
-type Screen='profiles'|'calendar'|'day'|'parent-gate'|'settings'
+type Screen='profiles'|'calendar'|'day'|'parent-auth'|'parent-gate'|'settings'
 const timerKey=(childId:string)=>`project-kavleen:timer:${childId}`
 const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${childId}:${activityId}:${new Date().toISOString().slice(0,10)}`
 
@@ -26,6 +28,7 @@ export default function App(){
  const [timer,setTimer]=useState<TimerSession|null>(null)
  const celebrationTimer=useRef<number|null>(null)
  const selectedProfile=settings.children.find(c=>c.id===selectedChildId)??null
+ const openParent=async()=>{if(!supabase){setScreen('parent-auth');return}const {data:{user}}=await supabase.auth.getUser();setScreen(user?.email?'parent-gate':'parent-auth')}
 
  useEffect(()=>{let active=true;loadFamilySettings().then(remote=>{if(active&&remote){setSettings(remote);saveParentSettings(remote)}}).catch(e=>console.warn('Using local family data until Supabase is ready.',e));return()=>{active=false;if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current)}},[])
  const startDay=async(profile:ChildProfile)=>{
@@ -57,11 +60,12 @@ export default function App(){
  }
  const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity){const key=usageKey(selectedProfile.id,activity.id);localStorage.setItem(key,String(Number(localStorage.getItem(key)??0)+timer.durationMinutes));void completeActivity(activity)}},[selectedProfile,timer,completeActivity])
 
+ if(screen==='parent-auth')return <ParentAuth onReady={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='parent-gate')return <ParentGate onUnlock={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='settings')return <ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen('profiles')}/>
- if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>setScreen('parent-gate')}/>
- if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} onBack={()=>setScreen('profiles')}/>
+ if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>void openParent()}/>
+ if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} onBack={()=>setScreen('profiles')} onSettings={()=>void openParent()}/>
  const timerActivity=timer?(selectedProfile.activities??[]).find(a=>a.id===timer.activityId):undefined
- return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} selectedDate={selectedDate} onBack={()=>setScreen('calendar')}/>
+ return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} selectedDate={selectedDate} onBack={()=>setScreen('calendar')} onSettings={()=>void openParent()}/>
   {timer&&timerActivity&&<TimerOverlay activity={timerActivity} session={timer} voice={settings.voice} onFinish={finishTimer} onClose={()=>setTimer(null)}/>}</>
 }
