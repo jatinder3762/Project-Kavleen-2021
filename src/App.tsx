@@ -7,7 +7,7 @@ import { ParentAuth } from './components/ParentAuth'
 import { supabase } from './lib/auth'
 import { ProfilePicker } from './components/ProfilePicker'
 import { TimerOverlay } from './components/TimerOverlay'
-import { loadCompletions, localDateKey, saveCompletion } from './lib/persistence'
+import { loadCompletions, localDateKey, saveActivityAnswer } from './lib/persistence'
 import { emptyParentSettings, saveParentSettings } from './lib/settings'
 import { loadFamilySettings, saveFamilySettings } from './lib/familyRepository'
 import { pickEncouragement, speak } from './lib/speech'
@@ -71,16 +71,20 @@ export default function App(){
    console.error(e);setSaveError('Could not save to your family account. Nothing was deleted. Please check the Supabase setup and try again.')
   }
  }
- const completeActivity=useCallback(async(activity:Activity)=>{
+ const answerActivity=useCallback(async(activity:Activity,status:'yes'|'no')=>{
   if(!selectedProfile)return
-  if(completions[activity.id]&&activity.type!=='recurring'){speak('Already done! Great job!',settings.voice);return}
-  const completedAt=new Date().toISOString(),message=pickEncouragement()
-  setCompletions(current=>({...current,[activity.id]:completedAt}));setCelebration({activityId:activity.id,message});speak(message,settings.voice)
-  if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current);celebrationTimer.current=window.setTimeout(()=>setCelebration(null),1800)
-  await saveCompletion(selectedProfile.id,activity.id,completedAt,selectedDate)
-  const triggered=(selectedProfile.activities??[]).find(a=>a.triggerAfterId===activity.id)
-  if(triggered)window.setTimeout(()=>speak(`Next, ${triggered.label}.`,settings.voice),1900)
- },[selectedProfile,completions,settings.voice,selectedDate])
+  const answeredAt=new Date().toISOString()
+  setCompletions(current=>({...current,[activity.id]:{status,answeredAt}}))
+  if(status==='yes'){
+   const message=pickEncouragement();setCelebration({activityId:activity.id,message});speak(message,settings.voice)
+   if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current);celebrationTimer.current=window.setTimeout(()=>setCelebration(null),1800)
+   const triggered=(selectedProfile.activities??[]).find(a=>a.triggerAfterId===activity.id)
+   if(triggered)window.setTimeout(()=>speak(`Next, ${triggered.label}.`,settings.voice),1900)
+  }else{
+   setCelebration(null);speak('Okay. Pochu says we can try again next time.',settings.voice)
+  }
+  await saveActivityAnswer(selectedProfile.id,activity.id,status,answeredAt,selectedDate)
+ },[selectedProfile,settings.voice,selectedDate])
  const startTimer=(activity:Activity)=>{
   if(!selectedProfile)return
   const requested=Math.max(1,activity.durationMinutes??30)
@@ -91,7 +95,7 @@ export default function App(){
   const session={activityId:activity.id,startedAt:startedAt.toISOString(),endsAt:endsAt.toISOString(),durationMinutes:duration}
   localStorage.setItem(timerKey(selectedProfile.id),JSON.stringify(session));setTimer(session);speak(`${activity.label} started for ${duration} minutes.`,settings.voice)
  }
- const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity){const key=usageKey(selectedProfile.id,activity.id);localStorage.setItem(key,String(Number(localStorage.getItem(key)??0)+timer.durationMinutes));void completeActivity(activity)}},[selectedProfile,timer,completeActivity])
+ const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity){const key=usageKey(selectedProfile.id,activity.id);localStorage.setItem(key,String(Number(localStorage.getItem(key)??0)+timer.durationMinutes));void answerActivity(activity,'yes')}},[selectedProfile,timer,answerActivity])
 
  if(screen==='loading')return <main className="pochu-loading"><div className="pochu-loading-bear">🐻</div><strong>POCHU</strong><span>Getting your family ready…</span></main>
  if(screen==='parent-auth')return <ParentAuth onReady={()=>void loadSignedInFamily()}/>
@@ -100,6 +104,6 @@ export default function App(){
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>void openParent()}/>
  if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} onBack={()=>setScreen('profiles')} onSettings={()=>void openParent()}/>
  const timerActivity=timer?(selectedProfile.activities??[]).find(a=>a.id===timer.activityId):undefined
- return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} selectedDate={selectedDate} onBack={()=>setScreen('calendar')} onSettings={()=>void openParent()}/>
+ return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onAnswer={answerActivity} onStartTimer={startTimer} selectedDate={selectedDate} onBack={()=>setScreen('calendar')} onSettings={()=>void openParent()}/>
   {timer&&timerActivity&&<TimerOverlay activity={timerActivity} session={timer} voice={settings.voice} onFinish={finishTimer} onClose={()=>setTimer(null)}/>}</>
 }
