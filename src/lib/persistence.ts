@@ -88,10 +88,11 @@ export async function saveCompletion(
   childId: string,
   activityId: string,
   completedAt: string,
+  date = localDateKey(),
 ) {
-  const current = readLocal(childId)
+  const current = readLocal(childId, date)
   current[activityId] = completedAt
-  writeLocal(childId, current)
+  writeLocal(childId, current, date)
 
   if (!supabase) return { synced: false }
 
@@ -104,7 +105,7 @@ export async function saveCompletion(
         owner_id: user.id,
         child_key: childId,
         activity_key: activityId,
-        activity_date: localDateKey(),
+        activity_date: date,
         completed_at: completedAt,
       },
       {
