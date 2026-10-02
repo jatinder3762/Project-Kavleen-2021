@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityBoard } from './components/ActivityBoard'
 import { ParentSettingsPage } from './components/ParentSettingsPage'
+import { ParentGate } from './components/ParentGate'
 import { ProfilePicker } from './components/ProfilePicker'
 import { TimerOverlay } from './components/TimerOverlay'
 import { loadTodayCompletions, saveCompletion } from './lib/persistence'
@@ -8,7 +9,7 @@ import { loadParentSettings, saveParentSettings } from './lib/settings'
 import { pickEncouragement, speak } from './lib/speech'
 import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSession } from './types'
 
-type Screen='profiles'|'day'|'settings'
+type Screen='profiles'|'day'|'parent-gate'|'settings'
 const timerKey=(childId:string)=>`project-kavleen:timer:${childId}`
 const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${childId}:${activityId}:${new Date().toISOString().slice(0,10)}`
 
@@ -51,8 +52,9 @@ export default function App(){
  }
  const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity){const key=usageKey(selectedProfile.id,activity.id);localStorage.setItem(key,String(Number(localStorage.getItem(key)??0)+timer.durationMinutes));void completeActivity(activity)}},[selectedProfile,timer,completeActivity])
 
+ if(screen==='parent-gate')return <ParentGate onUnlock={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='settings')return <ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen('profiles')}/>
- if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>setScreen('settings')}/>
+ if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>setScreen('parent-gate')}/>
  const timerActivity=timer?(selectedProfile.activities??[]).find(a=>a.id===timer.activityId):undefined
  return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} onBack={()=>setScreen('profiles')}/>
   {timer&&timerActivity&&<TimerOverlay activity={timerActivity} session={timer} voice={settings.voice} onFinish={finishTimer} onClose={()=>setTimer(null)}/>}</>
