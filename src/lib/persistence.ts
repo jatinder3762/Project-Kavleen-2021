@@ -21,17 +21,17 @@ function storageKey(childId: string, date = localDateKey()) {
   return `${STORAGE_PREFIX}:${childId}:${date}`
 }
 
-function readLocal(childId: string): CompletionMap {
+function readLocal(childId: string, date = localDateKey()): CompletionMap {
   try {
-    const value = localStorage.getItem(storageKey(childId))
+    const value = localStorage.getItem(storageKey(childId, date))
     return value ? (JSON.parse(value) as CompletionMap) : {}
   } catch {
     return {}
   }
 }
 
-function writeLocal(childId: string, completions: CompletionMap) {
-  localStorage.setItem(storageKey(childId), JSON.stringify(completions))
+function writeLocal(childId: string, completions: CompletionMap, date = localDateKey()) {
+  localStorage.setItem(storageKey(childId, date), JSON.stringify(completions))
 }
 
 async function getOrCreateUser(): Promise<User | null> {
@@ -54,8 +54,8 @@ async function getOrCreateUser(): Promise<User | null> {
   return userPromise
 }
 
-export async function loadTodayCompletions(childId: string): Promise<CompletionMap> {
-  const local = readLocal(childId)
+export async function loadCompletions(childId: string, date = localDateKey()): Promise<CompletionMap> {
+  const local = readLocal(childId, date)
   if (!supabase) return local
 
   try {
@@ -67,7 +67,7 @@ export async function loadTodayCompletions(childId: string): Promise<CompletionM
       .select('activity_key, completed_at')
       .eq('owner_id', user.id)
       .eq('child_key', childId)
-      .eq('activity_date', localDateKey())
+      .eq('activity_date', date)
 
     if (error) throw error
 
@@ -76,7 +76,7 @@ export async function loadTodayCompletions(childId: string): Promise<CompletionM
       merged[row.activity_key] = row.completed_at
     }
 
-    writeLocal(childId, merged)
+    writeLocal(childId, merged, date)
     return merged
   } catch (error) {
     console.warn('Could not load Supabase completions. Using local storage.', error)
@@ -88,10 +88,11 @@ export async function saveCompletion(
   childId: string,
   activityId: string,
   completedAt: string,
+  date = localDateKey(),
 ) {
-  const current = readLocal(childId)
+  const current = readLocal(childId, date)
   current[activityId] = completedAt
-  writeLocal(childId, current)
+  writeLocal(childId, current, date)
 
   if (!supabase) return { synced: false }
 
@@ -104,7 +105,7 @@ export async function saveCompletion(
         owner_id: user.id,
         child_key: childId,
         activity_key: activityId,
-        activity_date: localDateKey(),
+        activity_date: date,
         completed_at: completedAt,
       },
       {
@@ -119,3 +120,5 @@ export async function saveCompletion(
     return { synced: false }
   }
 }
+
+export const loadTodayCompletions=(childId:string)=>loadCompletions(childId)
