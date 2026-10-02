@@ -2,6 +2,7 @@
 create table if not exists public.families (
   id uuid primary key default gen_random_uuid(),
   name text not null default 'My Family',
+  voice_settings jsonb not null default '{"enabled":true,"voiceURI":"","rate":0.9,"pitch":1.15}'::jsonb,
   created_at timestamptz not null default now()
 );
 create table if not exists public.family_members (
@@ -16,7 +17,7 @@ create table if not exists public.children (
   family_id uuid not null references public.families(id) on delete cascade,
   name text not null,
   emoji text not null default '🧒',
-  public_key uuid not null default gen_random_uuid() unique,
+  photo_path text,
   created_at timestamptz not null default now()
 );
 create table if not exists public.routine_sections (
@@ -104,3 +105,8 @@ drop policy if exists "members manage activity events" on public.activity_events
 create policy "members manage activity events" on public.activity_events for all to authenticated
 using (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)))
 with check (exists(select 1 from public.children c where c.id=child_id and public.is_family_member(c.family_id)));
+
+-- Private child photos. Authenticated family members access files through signed-in Supabase clients.
+insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
+values ('child-photos','child-photos',false,3145728,array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
