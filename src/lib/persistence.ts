@@ -1,14 +1,7 @@
-import { createClient, type User } from '@supabase/supabase-js'
+import { supabase } from './auth'
 import type { CompletionMap } from '../types'
 
 const STORAGE_PREFIX = 'project-kavleen:completions'
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
-
-const supabase =
-  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
-
-let userPromise: Promise<User | null> | null = null
 
 export function localDateKey(date = new Date()) {
   const year = date.getFullYear()
@@ -34,24 +27,10 @@ function writeLocal(childId: string, completions: CompletionMap, date = localDat
   localStorage.setItem(storageKey(childId, date), JSON.stringify(completions))
 }
 
-async function getOrCreateUser(): Promise<User | null> {
-  if (!supabase) return null
-  if (userPromise) return userPromise
-
-  userPromise = (async () => {
-    const { data } = await supabase.auth.getSession()
-    if (data.session?.user) return data.session.user
-
-    const { data: anonymousData, error } = await supabase.auth.signInAnonymously()
-    if (error) throw error
-    return anonymousData.user
-  })().catch((error) => {
-    console.warn('Supabase anonymous sign-in unavailable. Using local storage.', error)
-    userPromise = null
-    return null
-  })
-
-  return userPromise
+async function getSignedInUser(){
+  if(!supabase)return null
+  const {data:{user}}=await supabase.auth.getUser()
+  return user && !user.is_anonymous ? user : null
 }
 
 export async function loadCompletions(childId: string, date = localDateKey()): Promise<CompletionMap> {
@@ -59,21 +38,22 @@ export async function loadCompletions(childId: string, date = localDateKey()): P
   if (!supabase) return local
 
   try {
-    const user = await getOrCreateUser()
+    const user = await getSignedInUser()
     if (!user) return local
 
     const { data, error } = await supabase
-      .from('daily_activity_completions')
-      .select('activity_key, completed_at')
-      .eq('owner_id', user.id)
-      .eq('child_key', childId)
-      .eq('activity_date', date)
+      .from('activity_events')
+      .select('activity_id, occurred_at')
+      .eq('child_id', childId)
+      .eq('event_type','completed')
+      .gte('occurred_at', date+'T00:00:00')
+      .lt('occurred_at', date+'T23:59:59.999')
 
     if (error) throw error
 
     const merged = { ...local }
     for (const row of data ?? []) {
-      merged[row.activity_key] = row.completed_at
+      merged[row.activity_id] = row.occurred_at
     }
 
     writeLocal(childId, merged, date)
@@ -97,21 +77,10 @@ export async function saveCompletion(
   if (!supabase) return { synced: false }
 
   try {
-    const user = await getOrCreateUser()
+    const user = await getSignedInUser()
     if (!user) return { synced: false }
 
-    const { error } = await supabase.from('daily_activity_completions').upsert(
-      {
-        owner_id: user.id,
-        child_key: childId,
-        activity_key: activityId,
-        activity_date: date,
-        completed_at: completedAt,
-      },
-      {
-        onConflict: 'owner_id,child_key,activity_key,activity_date',
-      },
-    )
+    const { error } = await supabase.from('activity_events').insert({child_id:childId,activity_id:activityId,event_type:'completed',occurred_at:completedAt,metadata:{activity_date:date}})
 
     if (error) throw error
     return { synced: true }

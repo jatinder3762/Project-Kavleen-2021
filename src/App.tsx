@@ -7,6 +7,7 @@ import { ProfilePicker } from './components/ProfilePicker'
 import { TimerOverlay } from './components/TimerOverlay'
 import { loadCompletions, localDateKey, saveCompletion } from './lib/persistence'
 import { loadParentSettings, saveParentSettings } from './lib/settings'
+import { loadFamilySettings, saveFamilySettings } from './lib/familyRepository'
 import { pickEncouragement, speak } from './lib/speech'
 import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSession } from './types'
 
@@ -26,14 +27,14 @@ export default function App(){
  const celebrationTimer=useRef<number|null>(null)
  const selectedProfile=settings.children.find(c=>c.id===selectedChildId)??null
 
- useEffect(()=>()=>{if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current)},[])
+ useEffect(()=>{let active=true;loadFamilySettings().then(remote=>{if(active&&remote){setSettings(remote);saveParentSettings(remote)}}).catch(e=>console.warn('Using local family data until Supabase is ready.',e));return()=>{active=false;if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current)}},[])
  const startDay=async(profile:ChildProfile)=>{
   setSelectedChildId(profile.id); const today=localDateKey(); const done=await loadCompletions(profile.id,today); setCompletionDays({[today]:done}); setScreen('calendar')
   try{const raw=localStorage.getItem(timerKey(profile.id)); if(raw){const saved=JSON.parse(raw) as TimerSession;if(new Date(saved.endsAt).getTime()>Date.now())setTimer(saved)}}catch{}
   speak(`Hi ${profile.name}! Let's have a happy day!`,settings.voice)
  }
  const openDate=async(date:string)=>{if(!selectedProfile)return;const done=await loadCompletions(selectedProfile.id,date);setSelectedDate(date);setCompletions(done);setCompletionDays(current=>({...current,[date]:done}));setScreen('day')}
- const updateSettings=(next:ParentSettings)=>{setSettings(next);saveParentSettings(next);setScreen('profiles')}
+ const updateSettings=(next:ParentSettings)=>{setSettings(next);saveParentSettings(next);setScreen('profiles');void saveFamilySettings(next).catch(e=>console.warn('Settings saved locally but Supabase sync failed.',e))}
  const completeActivity=useCallback(async(activity:Activity)=>{
   if(!selectedProfile)return
   if(completions[activity.id]&&activity.type!=='recurring'){speak('Already done! Great job!',settings.voice);return}
