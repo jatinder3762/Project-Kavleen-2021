@@ -40,10 +40,10 @@ export default function App(){
   const completedAt=new Date().toISOString(),message=pickEncouragement()
   setCompletions(current=>({...current,[activity.id]:completedAt}));setCelebration({activityId:activity.id,message});speak(message,settings.voice)
   if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current);celebrationTimer.current=window.setTimeout(()=>setCelebration(null),1800)
-  await saveCompletion(selectedProfile.id,activity.id,completedAt)
+  await saveCompletion(selectedProfile.id,activity.id,completedAt,selectedDate)
   const triggered=(selectedProfile.activities??[]).find(a=>a.triggerAfterId===activity.id)
   if(triggered)window.setTimeout(()=>speak(`Next, ${triggered.label}.`,settings.voice),1900)
- },[selectedProfile,completions,settings.voice])
+ },[selectedProfile,completions,settings.voice,selectedDate])
  const startTimer=(activity:Activity)=>{
   if(!selectedProfile)return
   const requested=Math.max(1,activity.durationMinutes??30)
@@ -59,8 +59,8 @@ export default function App(){
  if(screen==='parent-gate')return <ParentGate onUnlock={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='settings')return <ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen('profiles')}/>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>setScreen('parent-gate')}/>
- if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} selectedDate={selectedDate} onBack={()=>setScreen('calendar')}/>
+ if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} onBack={()=>setScreen('profiles')}/>
  const timerActivity=timer?(selectedProfile.activities??[]).find(a=>a.id===timer.activityId):undefined
- return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} onBack={()=>setScreen('profiles')}/>
+ return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} selectedDate={selectedDate} onBack={()=>setScreen('calendar')}/>
   {timer&&timerActivity&&<TimerOverlay activity={timerActivity} session={timer} voice={settings.voice} onFinish={finishTimer} onClose={()=>setTimer(null)}/>}</>
 }
