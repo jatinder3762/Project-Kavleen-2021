@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityBoard } from './components/ActivityBoard'
+import { ChildCalendar } from './components/ChildCalendar'
 import { ParentSettingsPage } from './components/ParentSettingsPage'
 import { ParentGate } from './components/ParentGate'
 import { ProfilePicker } from './components/ProfilePicker'
 import { TimerOverlay } from './components/TimerOverlay'
-import { loadTodayCompletions, saveCompletion } from './lib/persistence'
+import { loadCompletions, localDateKey, saveCompletion } from './lib/persistence'
 import { loadParentSettings, saveParentSettings } from './lib/settings'
 import { pickEncouragement, speak } from './lib/speech'
 import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSession } from './types'
 
-type Screen='profiles'|'day'|'parent-gate'|'settings'
+type Screen='profiles'|'calendar'|'day'|'parent-gate'|'settings'
 const timerKey=(childId:string)=>`project-kavleen:timer:${childId}`
 const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${childId}:${activityId}:${new Date().toISOString().slice(0,10)}`
 
@@ -18,6 +19,8 @@ export default function App(){
  const [settings,setSettings]=useState<ParentSettings>(()=>loadParentSettings())
  const [selectedChildId,setSelectedChildId]=useState<string|null>(null)
  const [completions,setCompletions]=useState<CompletionMap>({})
+ const [completionDays,setCompletionDays]=useState<Record<string,CompletionMap>>({})
+ const [selectedDate,setSelectedDate]=useState(localDateKey())
  const [celebration,setCelebration]=useState<{activityId:string;message:string}|null>(null)
  const [timer,setTimer]=useState<TimerSession|null>(null)
  const celebrationTimer=useRef<number|null>(null)
@@ -25,10 +28,11 @@ export default function App(){
 
  useEffect(()=>()=>{if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current)},[])
  const startDay=async(profile:ChildProfile)=>{
-  setSelectedChildId(profile.id); setCompletions(await loadTodayCompletions(profile.id)); setScreen('day')
+  setSelectedChildId(profile.id); const today=localDateKey(); const done=await loadCompletions(profile.id,today); setCompletionDays({[today]:done}); setScreen('calendar')
   try{const raw=localStorage.getItem(timerKey(profile.id)); if(raw){const saved=JSON.parse(raw) as TimerSession;if(new Date(saved.endsAt).getTime()>Date.now())setTimer(saved)}}catch{}
   speak(`Hi ${profile.name}! Let's have a happy day!`,settings.voice)
  }
+ const openDate=async(date:string)=>{if(!selectedProfile)return;const done=await loadCompletions(selectedProfile.id,date);setSelectedDate(date);setCompletions(done);setCompletionDays(current=>({...current,[date]:done}));setScreen('day')}
  const updateSettings=(next:ParentSettings)=>{setSettings(next);saveParentSettings(next);setScreen('profiles')}
  const completeActivity=useCallback(async(activity:Activity)=>{
   if(!selectedProfile)return
@@ -55,6 +59,7 @@ export default function App(){
  if(screen==='parent-gate')return <ParentGate onUnlock={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='settings')return <ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen('profiles')}/>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>setScreen('parent-gate')}/>
+ if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} selectedDate={selectedDate} onBack={()=>setScreen('calendar')}/>
  const timerActivity=timer?(selectedProfile.activities??[]).find(a=>a.id===timer.activityId):undefined
  return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} onBack={()=>setScreen('profiles')}/>
   {timer&&timerActivity&&<TimerOverlay activity={timerActivity} session={timer} voice={settings.voice} onFinish={finishTimer} onClose={()=>setTimer(null)}/>}</>
