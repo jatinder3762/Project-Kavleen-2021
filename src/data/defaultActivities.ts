@@ -2,9 +2,10 @@ import type { Activity, RoutineSection } from '../types'
 
 export const defaultSections: RoutineSection[] = [
   { id: 'morning', icon: '🌅', label: 'Morning', order: 0 },
-  { id: 'day', icon: '☀️', label: 'Day', order: 1 },
-  { id: 'evening', icon: '🌇', label: 'Evening', order: 2 },
-  { id: 'bedtime', icon: '🌙', label: 'Bedtime', order: 3 },
+  { id: 'day', icon: '☀️', label: 'Daytime', order: 1 },
+  { id: 'afternoon', icon: '🌤️', label: 'Afternoon', order: 2 },
+  { id: 'evening', icon: '🌇', label: 'Evening', order: 3 },
+  { id: 'bedtime', icon: '🌙', label: 'Bedtime', order: 4 },
 ]
 
 export const defaultActivities: Activity[] = [
