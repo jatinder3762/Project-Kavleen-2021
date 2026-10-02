@@ -887,3 +887,5 @@ button:focus-visible {
 .timer-ring>div{width:100%;height:100%;border-radius:50%;background:#fff;display:grid;place-content:center}
 .timer-ring strong{font-size:clamp(2.5rem,12vw,4rem);line-height:1}.timer-ring span{margin-top:6px;color:#756e86;font-weight:800}
 @media(max-width:650px){.routine-library{display:grid}.library-chips{justify-content:flex-start}.routine-columns{grid-template-columns:1fr}.routine-card{grid-template-columns:30px 34px minmax(0,1fr) auto}}
+
+.parent-lock{max-width:520px;margin:8vh auto;text-align:center}.parent-lock>.settings-icon{font-size:4rem}.parent-lock form{display:grid;gap:16px;margin-top:20px;text-align:left}.parent-lock form label{display:grid;gap:7px;font-weight:850}.parent-lock form input{min-height:50px;border:2px solid #ddd8e8;border-radius:14px;padding:10px 12px;font:inherit}.parent-lock [role=alert]{color:#a12626;font-weight:800}
