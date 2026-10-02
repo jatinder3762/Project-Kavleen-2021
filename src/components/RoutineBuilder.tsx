@@ -13,6 +13,7 @@ export function RoutineBuilder({ child, onChange }: Props) {
   const sections = child.sections ?? []
   const activities = child.activities ?? []
   const [editing, setEditing] = useState<string | null>(null)
+  const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
   const commit = (next: Activity[]) => onChange({ ...child, activities: next })
   const update = (id: string, patch: Partial<Activity>) => commit(activities.map(a => a.id === id ? { ...a, ...patch } : a))
@@ -70,12 +71,15 @@ export function RoutineBuilder({ child, onChange }: Props) {
               </div>
               {editing===activity.id && <div className="activity-editor">
                 <label>Name<input value={activity.label} onChange={e=>update(activity.id,{label:e.target.value})}/></label>
+                <label>Icon / emoji<input value={activity.emoji} onChange={e=>update(activity.id,{emoji:e.target.value.slice(0,8)})}/></label>
+                <label>When should it appear?<select value={activity.sectionId} onChange={e=>move(activity,e.target.value,activities.filter(a=>a.sectionId===e.target.value).length)}>{sections.slice().sort((a,b)=>a.order-b.order).map(s=><option key={s.id} value={s.id}>{s.icon} {s.label}</option>)}</select></label>
+                <fieldset className="days-picker"><legend>Days</legend>{dayNames.map((name,day)=><label key={name}><input type="checkbox" checked={!activity.days?.length||activity.days.includes(day)} onChange={e=>{const current=activity.days?.length?activity.days:[0,1,2,3,4,5,6];update(activity.id,{days:e.target.checked?[...new Set([...current,day])].sort():current.filter(x=>x!==day)})}}/>{name}</label>)}</fieldset>
+                <label>Optional display time<input type="time" value={activity.scheduleTime ?? ''} onChange={e=>update(activity.id,{scheduleTime:e.target.value||undefined})}/></label>
                 <label>Type<select value={activity.type} onChange={e=>update(activity.id,{type:e.target.value as Activity['type']})}>
                   <option value="normal">Normal</option><option value="recurring">Recurring</option><option value="timed">Timed</option><option value="scheduled">Scheduled</option><option value="triggered">Triggered</option><option value="checklist">Checklist</option>
                 </select></label>
                 {(activity.type==='timed') && <><label>Session minutes<input type="number" min="1" max="240" value={activity.durationMinutes ?? 30} onChange={e=>update(activity.id,{durationMinutes:Number(e.target.value)})}/></label>
                 <label>Daily limit<input type="number" min="1" max="600" value={activity.dailyLimitMinutes ?? ''} onChange={e=>update(activity.id,{dailyLimitMinutes:e.target.value?Number(e.target.value):undefined})}/></label></>}
-                {(activity.type==='scheduled') && <label>Time<input type="time" value={activity.scheduleTime ?? ''} onChange={e=>update(activity.id,{scheduleTime:e.target.value})}/></label>}
                 {(activity.type==='triggered') && <label>Show after<select value={activity.triggerAfterId ?? ''} onChange={e=>update(activity.id,{triggerAfterId:e.target.value})}><option value="">Choose activity</option>{activities.filter(a=>a.id!==activity.id).map(a=><option value={a.id} key={a.id}>{a.label}</option>)}</select></label>}
                 <button type="button" className="remove-child-button" onClick={()=>remove(activity.id)}>Remove activity</button>
               </div>}
