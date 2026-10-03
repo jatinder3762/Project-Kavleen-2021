@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { supabase } from '../lib/auth'
 
 type Props={onReady:()=>void}
+
+const authRedirectUrl=()=>new URL(import.meta.env.BASE_URL,window.location.origin).toString()
+
 export function ParentAuth({onReady}:Props){
  const [mode,setMode]=useState<'login'|'register'>('login')
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
@@ -9,11 +12,25 @@ export function ParentAuth({onReady}:Props){
   e.preventDefault()
   if(!supabase){setError('Supabase is not configured yet.');return}
   setBusy(true);setError('')
-  const result=mode==='login'?await supabase.auth.signInWithPassword({email,password}):await supabase.auth.signUp({email,password})
+  const result=mode==='login'
+   ?await supabase.auth.signInWithPassword({email,password})
+   :await supabase.auth.signUp({email,password,options:{emailRedirectTo:authRedirectUrl()}})
   setBusy(false)
   if(result.error){setError(result.error.message);return}
   if(mode==='register'&&!result.data.session){setError('Account created. Check your email to confirm it, then log in.');setMode('login');return}
   onReady()
+ }
+ const resendConfirmation=async()=>{
+  if(!supabase){setError('Supabase is not configured yet.');return}
+  if(!email.trim()){setError('Enter your email above first.');return}
+  setBusy(true);setError('')
+  const {error:resendError}=await supabase.auth.resend({
+   type:'signup',
+   email:email.trim(),
+   options:{emailRedirectTo:authRedirectUrl()}
+  })
+  setBusy(false)
+  setError(resendError?resendError.message:'Confirmation email sent. Please check your inbox.')
  }
  return <main className="pochu-auth-screen">
   <section className="pochu-hero">
@@ -33,7 +50,8 @@ export function ParentAuth({onReady}:Props){
     {error&&<p className="auth-message" role="alert">{error}</p>}
     <button className="pochu-primary" disabled={busy}>{busy?'Please wait…':mode==='login'?'Log in':'Create parent account'}</button>
    </form>
-   <button className="auth-switch" onClick={()=>{setMode(mode==='login'?'register':'login');setError('')}}>{mode==='login'?'New to Pochu? Create an account':'Already have an account? Log in'}</button>
+   {mode==='login'&&<button className="auth-switch" type="button" disabled={busy} onClick={resendConfirmation}>Resend confirmation email</button>}
+   <button className="auth-switch" type="button" onClick={()=>{setMode(mode==='login'?'register':'login');setError('')}}>{mode==='login'?'New to Pochu? Create an account':'Already have an account? Log in'}</button>
    <p className="child-no-login">🔒 Children do not need an email or password.</p>
   </section>
  </main>
