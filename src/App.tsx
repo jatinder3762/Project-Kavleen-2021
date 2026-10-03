@@ -5,6 +5,7 @@ import { ParentSettingsPage } from './components/ParentSettingsPage'
 import { ParentGate } from './components/ParentGate'
 import { ParentAuth } from './components/ParentAuth'
 import { supabase } from './lib/auth'
+import { authCallback, clearAuthCallback, markPasswordRecovery } from './lib/authFlow'
 import { ProfilePicker } from './components/ProfilePicker'
 import { TimerOverlay } from './components/TimerOverlay'
 import { loadCompletions, localDateKey, saveCompletion } from './lib/persistence'
@@ -13,7 +14,7 @@ import { loadFamilySettings, saveFamilySettings } from './lib/familyRepository'
 import { pickEncouragement, speak } from './lib/speech'
 import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSession } from './types'
 
-type Screen='loading'|'parent-auth'|'profiles'|'calendar'|'day'|'parent-gate'|'settings'
+type Screen='loading'|'parent-auth'|'password-recovery'|'profiles'|'calendar'|'day'|'parent-gate'|'settings'
 const timerKey=(childId:string)=>`project-kavleen:timer:${childId}`
 const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${childId}:${activityId}:${new Date().toISOString().slice(0,10)}`
 
@@ -27,6 +28,7 @@ export default function App(){
  const [celebration,setCelebration]=useState<{activityId:string;message:string}|null>(null)
  const [timer,setTimer]=useState<TimerSession|null>(null)
  const [saveError,setSaveError]=useState('')
+ const [authMessage,setAuthMessage]=useState('')
  const celebrationTimer=useRef<number|null>(null)
  const selectedProfile=settings.children.find(c=>c.id===selectedChildId)??null
 
@@ -44,15 +46,27 @@ export default function App(){
 
  useEffect(()=>{
   let active=true
+  let recovering=authCallback.recovery
+  const subscription=supabase?.auth.onAuthStateChange(event=>{
+   if(event==='PASSWORD_RECOVERY'&&active){recovering=true;markPasswordRecovery();setScreen('password-recovery')}
+  }).data.subscription
   const boot=async()=>{
    if(!supabase){if(active)setScreen('parent-auth');return}
-   const {data:{session}}=await supabase.auth.getSession()
+   const {data:{session},error}=await supabase.auth.getSession()
    if(!active)return
+   if(authCallback.error){
+    setAuthMessage('This email link has expired or is invalid. Request a new reset link, or log in to resend verification.');clearAuthCallback();setScreen('parent-auth');return
+   }
+   if(recovering){
+    if(session&&!error){markPasswordRecovery();setScreen('password-recovery')}
+    else{setAuthMessage('This reset link has expired or is invalid. Please use Forgot Password to request a new link.');clearAuthCallback();setScreen('parent-auth')}
+    return
+   }
    if(!session){setScreen('parent-auth');return}
    await loadSignedInFamily()
   }
   void boot()
-  return()=>{active=false;if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current)}
+  return()=>{active=false;subscription?.unsubscribe();if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current)}
  },[loadSignedInFamily])
 
  const openParent=async()=>{if(!supabase){setScreen('parent-auth');return}const {data:{user}}=await supabase.auth.getUser();setScreen(user?.email?'parent-gate':'parent-auth')}
@@ -94,7 +108,7 @@ export default function App(){
  const finishTimer=useCallback(()=>{if(!selectedProfile||!timer)return;const activity=(selectedProfile.activities??[]).find(a=>a.id===timer.activityId);localStorage.removeItem(timerKey(selectedProfile.id));setTimer(null);if(activity){const key=usageKey(selectedProfile.id,activity.id);localStorage.setItem(key,String(Number(localStorage.getItem(key)??0)+timer.durationMinutes));void completeActivity(activity)}},[selectedProfile,timer,completeActivity])
 
  if(screen==='loading')return <main className="pochu-loading"><div className="pochu-loading-bear">🐻</div><strong>POCHU</strong><span>Getting your family ready…</span></main>
- if(screen==='parent-auth')return <ParentAuth onReady={()=>void loadSignedInFamily()}/>
+ if(screen==='parent-auth'||screen==='password-recovery')return <ParentAuth recovery={screen==='password-recovery'} initialMessage={authMessage} onReady={()=>void loadSignedInFamily()}/>
  if(screen==='parent-gate')return <ParentGate onUnlock={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='settings')return <>{saveError&&<div className="global-save-error" role="alert">{saveError}</div>}<ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen(settings.children.length?'profiles':'settings')}/></>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>void openParent()}/>
