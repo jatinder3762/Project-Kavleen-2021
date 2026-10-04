@@ -21,7 +21,7 @@ export async function loadFamilySettings():Promise<ParentSettings|null>{
  const {data:{user}}=await supabase.auth.getUser(); if(!user||user.is_anonymous)return null
  const familyId=await getFamilyId()
  const {data:family,error:fe}=await supabase.from('families').select('voice_settings').eq('id',familyId).single();if(fe)throw fe
- const {data:children,error:ce}=await supabase.from('children').select('id,name,emoji,photo_path').eq('family_id',familyId).order('created_at');if(ce)throw ce
+ const {data:children,error:ce}=await supabase.from('children').select('id,name,date_of_birth,emoji,photo_path').eq('family_id',familyId).order('created_at');if(ce)throw ce
  const profiles:ChildProfile[]=[]
  for(const child of children??[]){
   const [{data:sections,error:se},{data:activities,error:ae}]=await Promise.all([
@@ -30,22 +30,39 @@ export async function loadFamilySettings():Promise<ParentSettings|null>{
   ]);if(se)throw se;if(ae)throw ae
   let photoDataUrl:string|null=null
   if(child.photo_path){const {data}=await supabase.storage.from('child-photos').createSignedUrl(child.photo_path,3600);photoDataUrl=data?.signedUrl??null}
-  profiles.push({id:child.id,name:child.name,emoji:child.emoji,photoDataUrl,sections:(sections??[]).map(s=>({id:s.id,label:s.label,icon:s.icon,order:s.sort_order})),activities:(activities??[]).map(a=>({id:a.id,emoji:a.emoji,label:a.label,sectionId:a.section_id,type:a.activity_type,order:a.sort_order,durationMinutes:a.duration_minutes??undefined,dailyLimitMinutes:a.daily_limit_minutes??undefined,scheduleTime:a.schedule_time?.slice(0,5)??undefined,days:a.days??undefined,triggerAfterId:a.trigger_after_id??undefined,reminderMinutes:a.reminder_minutes,enabled:a.enabled}))})
+  profiles.push({id:child.id,name:child.name,dateOfBirth:child.date_of_birth??'',emoji:child.emoji,photoDataUrl,sections:(sections??[]).map(s=>({id:s.id,label:s.label,icon:s.icon,order:s.sort_order})),activities:(activities??[]).map(a=>({id:a.id,emoji:a.emoji,label:a.label,sectionId:a.section_id,type:a.activity_type,order:a.sort_order,durationMinutes:a.duration_minutes??undefined,dailyLimitMinutes:a.daily_limit_minutes??undefined,scheduleTime:a.schedule_time?.slice(0,5)??undefined,days:a.days??undefined,triggerAfterId:a.trigger_after_id??undefined,reminderMinutes:a.reminder_minutes,enabled:a.enabled}))})
  }
  return {children:profiles,voice:{...defaultVoiceSettings,...(family?.voice_settings??{})}}
 }
 
 export async function saveFamilySettings(settings:ParentSettings):Promise<ParentSettings>{
  if(!supabase)throw new Error('Supabase is not configured.')
+ const seen=new Set<string>()
+ for(const child of settings.children){
+  const name=child.name.trim()
+  if(!name)throw new Error('CHILD_NAME_REQUIRED')
+  if(!child.dateOfBirth)throw new Error('CHILD_DOB_REQUIRED')
+  const dob=new Date(child.dateOfBirth+'T00:00:00')
+  if(Number.isNaN(dob.getTime())||dob.getTime()>Date.now())throw new Error('CHILD_DOB_INVALID')
+  const key=name.toLocaleLowerCase()+'|'+child.dateOfBirth
+  if(seen.has(key))throw new Error('CHILD_DUPLICATE')
+  seen.add(key)
+ }
  const familyId=await getFamilyId()
  const {error:ve}=await supabase.from('families').update({voice_settings:settings.voice}).eq('id',familyId);if(ve)throw ve
+ const {data:existingChildren,error:existingError}=await supabase.from('children').select('id').eq('family_id',familyId);if(existingError)throw existingError
+ const desiredIds=new Set(settings.children.map(child=>child.id).filter(isUuid))
+ const removedIds=(existingChildren??[]).map(child=>child.id as string).filter(id=>!desiredIds.has(id))
+ if(removedIds.length){
+  const {error:deleteError}=await supabase.from('children').delete().eq('family_id',familyId).in('id',removedIds);if(deleteError)throw deleteError
+ }
  const normalizedChildren:ChildProfile[]=[]
  for(const child of settings.children){
   let childId=child.id
   if(!isUuid(childId)){
-   const {data,error}=await supabase.from('children').insert({family_id:familyId,name:child.name,emoji:child.emoji}).select('id').single();if(error)throw error;childId=data.id
+   const {data,error}=await supabase.from('children').insert({family_id:familyId,name:child.name,date_of_birth:child.dateOfBirth,emoji:child.emoji}).select('id').single();if(error)throw error;childId=data.id
   }else{
-   const {error}=await supabase.from('children').update({name:child.name,emoji:child.emoji}).eq('id',childId);if(error)throw error
+   const {error}=await supabase.from('children').update({name:child.name,date_of_birth:child.dateOfBirth,emoji:child.emoji}).eq('id',childId);if(error)throw error
   }
 
   const sectionMap=new Map<string,string>(),normalizedSections:RoutineSection[]=[]

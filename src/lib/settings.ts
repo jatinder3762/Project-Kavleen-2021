@@ -41,7 +41,8 @@ export function createChildProfile(index: number): ChildProfile {
   const routine = cloneDefaultRoutine()
   return {
     id: `child-${Date.now()}-${index}`,
-    name: index === 1 ? '' : `Child ${index}`,
+    name: '',
+    dateOfBirth: '',
     emoji: index % 2 === 0 ? '🧒' : '👧',
     photoDataUrl: null,
     ...routine,
