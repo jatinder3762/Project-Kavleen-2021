@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createChildProfile } from '../lib/settings'
+import { changeFamilyPin, createFamilyAccess, familyLink, regenerateFamilyAccess, setFamilyAccessEnabled } from '../lib/familyAccess'
 import { getEnglishVoices, speak } from '../lib/speech'
 import type { ChildProfile, ParentSettings } from '../types'
 import { RoutineBuilder } from './RoutineBuilder'
@@ -34,6 +35,9 @@ export function ParentSettingsPage({settings,onSave,onCancel}:Props){
  const [newChild,setNewChild]=useState<ChildProfile>(()=>createChildProfile(settings.children.length+1))
  const [formError,setFormError]=useState('')
  const [message,setMessage]=useState('')
+ const [accessUrl,setAccessUrl]=useState('')
+ const [accessPin,setAccessPin]=useState('1234')
+ const [accessBusy,setAccessBusy]=useState(false)
  useEffect(()=>{const refresh=()=>setVoices(getEnglishVoices());refresh();window.speechSynthesis?.addEventListener('voiceschanged',refresh);return()=>window.speechSynthesis?.removeEventListener('voiceschanged',refresh)},[])
  const updateChild=(id:string,patch:Partial<ChildProfile>)=>setDraft(c=>({...c,children:c.children.map(x=>x.id===id?{...x,...patch}:x)}))
  const replaceChild=(next:ChildProfile)=>setDraft(c=>({...c,children:c.children.map(x=>x.id===next.id?next:x)}))
@@ -51,6 +55,12 @@ export function ParentSettingsPage({settings,onSave,onCancel}:Props){
   setMessage(`${child.name} marked for removal. Save settings to finish.`)
  }
  const choosePhoto=(id:string,file?:File)=>{if(!file||!file.type.startsWith('image/'))return;if(file.size>3*1024*1024){setMessage('Please choose a picture smaller than 3 MB.');return}const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'&&updateChild(id,{photoDataUrl:reader.result});reader.readAsDataURL(file)}
+ const setupFamilyAccess=async()=>{setAccessBusy(true);try{const token=await createFamilyAccess();if(token){setAccessUrl(familyLink(token));setMessage('Family Access created with default PIN 1234. Please change it when ready.')}else setMessage('Family Access already exists. Regenerate the link to get a new shareable URL.')}catch(e){console.error(e);setMessage('Could not create Family Access. Apply the latest Supabase migration and try again.')}finally{setAccessBusy(false)}}
+ const regenerateAccess=async(changePin=false)=>{if(changePin&&!/^\\d{4,6}$/.test(accessPin)){setMessage('Family PIN must be 4 to 6 digits.');return}setAccessBusy(true);try{const token=await regenerateFamilyAccess(!changePin,changePin?accessPin:undefined);setAccessUrl(familyLink(token));setMessage(changePin?'New Family Link and PIN are ready.':'New Family Link is ready. Your PIN stayed the same.')}catch(e){console.error(e);setMessage('Could not regenerate Family Access.')}finally{setAccessBusy(false)}}
+ const savePin=async()=>{if(!/^\\d{4,6}$/.test(accessPin)){setMessage('Family PIN must be 4 to 6 digits.');return}setAccessBusy(true);try{await changeFamilyPin(accessPin);setMessage('Family PIN changed. The Family Link stayed the same.')}catch(e){console.error(e);setMessage('Could not change the Family PIN.')}finally{setAccessBusy(false)}}
+ const copyAccess=async()=>{if(!accessUrl)return;await navigator.clipboard.writeText(accessUrl);setMessage('Family Link copied.')}
+ const shareAccess=async()=>{if(!accessUrl)return;if(navigator.share)await navigator.share({title:'Pochu Family Access',text:'Open Pochu for our family',url:accessUrl});else await copyAccess()}
+ const disableAccess=async()=>{if(!window.confirm('Disable Family Access? The shared link will stop working until you create or regenerate access.'))return;setAccessBusy(true);try{await setFamilyAccessEnabled(false);setAccessUrl('');setMessage('Family Access disabled.')}catch(e){console.error(e);setMessage('Could not disable Family Access.')}finally{setAccessBusy(false)}}
  const routineChild=draft.children.find(c=>c.id===routineChildId)??draft.children[0]
  const save=()=>{
   for(const child of draft.children){const error=childError(child,draft.children,child.id);if(error){setMessage(`${child.name||'Child'}: ${error}`);return}}
@@ -71,6 +81,16 @@ export function ParentSettingsPage({settings,onSave,onCancel}:Props){
     </div></article>)}</div>
   </section>
   {routineChild&&<section className="settings-panel routine-panel"><div className="settings-panel-heading"><div><span className="settings-icon">🗓️</span><h2>{routineChild.name}’s Routine Builder</h2><p>Drag activities between sections, use ↑/↓ on touch devices, and tap a card to configure timers or triggers.</p></div></div><RoutineBuilder child={routineChild} onChange={replaceChild}/></section>}
+  <section className="settings-panel family-access-panel"><div className="settings-panel-heading"><div><span className="settings-icon">🔗</span><h2>Family Access</h2><p>One secure link for your children. They enter the family PIN, then choose their own profile.</p></div></div>
+   <div className="family-access-controls">
+    {!accessUrl?<button className="save-settings-button" type="button" disabled={accessBusy} onClick={()=>void setupFamilyAccess()}>{accessBusy?'Working…':'Create Family Link'}</button>:<>
+     <label><span>Family Link</span><input readOnly value={accessUrl}/></label><div className="family-access-actions"><button className="test-voice-button" type="button" onClick={()=>void copyAccess()}>📋 Copy link</button><button className="test-voice-button" type="button" onClick={()=>void shareAccess()}>↗ Share</button></div>
+    </>}
+    <label><span>Family PIN</span><input inputMode="numeric" maxLength={6} value={accessPin} onChange={e=>setAccessPin(e.target.value.replace(/\\D/g,''))}/><small>New access starts at 1234. Change it to a private 4–6 digit PIN.</small></label>
+    <div className="family-access-actions"><button className="test-voice-button" type="button" disabled={accessBusy} onClick={()=>void savePin()}>Change PIN</button><button className="test-voice-button" type="button" disabled={accessBusy} onClick={()=>void regenerateAccess(false)}>Regenerate link · keep PIN</button><button className="test-voice-button" type="button" disabled={accessBusy} onClick={()=>void regenerateAccess(true)}>Regenerate link + use PIN above</button></div>
+    <button className="remove-child-button" type="button" disabled={accessBusy} onClick={()=>void disableAccess()}>Disable Family Access</button>
+   </div>
+  </section>
   <section className="settings-panel"><div className="settings-panel-heading"><div><span className="settings-icon">🔊</span><h2>Voice & encouragement</h2><p>Choose the voice children hear for encouragement and timer warnings.</p></div></div>
    <div className="voice-settings-grid"><label className="toggle-row"><span><strong>Spoken encouragement</strong><small>Positive messages and timer warnings.</small></span><input type="checkbox" checked={draft.voice.enabled} onChange={e=>setDraft(c=>({...c,voice:{...c.voice,enabled:e.target.checked}}))}/></label>
     <label><span>Voice</span><select value={draft.voice.voiceURI} onChange={e=>setDraft(c=>({...c,voice:{...c.voice,voiceURI:e.target.value}}))}><option value="">Automatic female voice</option>{voices.map(v=><option value={v.voiceURI} key={v.voiceURI}>{v.name} ({v.lang})</option>)}</select></label>
