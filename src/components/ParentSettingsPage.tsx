@@ -13,7 +13,7 @@ export function ParentSettingsPage({settings,onSave,onCancel}:Props){
  const updateChild=(id:string,patch:Partial<ChildProfile>)=>setDraft(c=>({...c,children:c.children.map(x=>x.id===id?{...x,...patch}:x)}))
  const replaceChild=(next:ChildProfile)=>setDraft(c=>({...c,children:c.children.map(x=>x.id===next.id?next:x)}))
  const addChild=()=>{const child=createChildProfile(draft.children.length+1);setDraft(c=>({...c,children:[...c.children,child]}));setRoutineChildId(child.id)}
- const removeChild=(id:string)=>setDraft(c=>c.children.length<=1?c:{...c,children:c.children.filter(x=>x.id!==id)})
+ const removeChild=(id:string)=>setDraft(c=>({...c,children:c.children.filter(x=>x.id!==id)}))
  const choosePhoto=(id:string,file?:File)=>{if(!file||!file.type.startsWith('image/'))return;if(file.size>3*1024*1024){alert('Please choose a picture smaller than 3 MB.');return}const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'&&updateChild(id,{photoDataUrl:reader.result});reader.readAsDataURL(file)}
  const routineChild=draft.children.find(c=>c.id===routineChildId)??draft.children[0]
  return <main className="parent-settings-screen"><div className="parent-settings-shell">
@@ -24,7 +24,7 @@ export function ParentSettingsPage({settings,onSave,onCancel}:Props){
     <div className="child-settings-fields"><label><span>Child’s name</span><input value={child.name} maxLength={30} onChange={e=>updateChild(child.id,{name:e.target.value})}/></label>
      <label><span>Avatar</span><select value={child.emoji} onChange={e=>updateChild(child.id,{emoji:e.target.value})}><option>👧</option><option>👦</option><option>🧒</option><option>🐰</option><option>🦄</option><option>🐻</option></select></label>
      <button className="test-voice-button" type="button" onClick={()=>setRoutineChildId(child.id)}>🗓️ Edit {child.name || 'child'}’s routine</button>
-     {draft.children.length>1&&<button className="remove-child-button" type="button" onClick={()=>removeChild(child.id)}>Remove child</button>}
+     {<button className="remove-child-button" type="button" onClick={()=>removeChild(child.id)}>Remove child</button>}
     </div></article>)}</div>
   </section>
   {routineChild&&<section className="settings-panel routine-panel"><div className="settings-panel-heading"><div><span className="settings-icon">🗓️</span><h2>{routineChild.name}’s Routine Builder</h2><p>Drag activities between sections, use ↑/↓ on touch devices, and tap a card to configure timers or triggers.</p></div></div><RoutineBuilder child={routineChild} onChange={replaceChild}/></section>}
