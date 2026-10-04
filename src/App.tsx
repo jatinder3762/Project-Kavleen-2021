@@ -4,16 +4,18 @@ import { ChildCalendar } from './components/ChildCalendar'
 import { ParentSettingsPage } from './components/ParentSettingsPage'
 import { ParentGate } from './components/ParentGate'
 import { ParentAuth } from './components/ParentAuth'
+import { FamilyPinGate } from './components/FamilyPinGate'
 import { supabase } from './lib/auth'
 import { ProfilePicker } from './components/ProfilePicker'
 import { TimerOverlay } from './components/TimerOverlay'
 import { loadCompletions, localDateKey, saveCompletion } from './lib/persistence'
 import { emptyParentSettings, saveParentSettings } from './lib/settings'
 import { loadFamilySettings, saveFamilySettings } from './lib/familyRepository'
+import { clearFamilyAccess, loadFamilyChild, readFamilyAccess, saveFamilyCompletion, tokenFromUrl, type FamilyAccessSession } from './lib/familyAccess'
 import { pickEncouragement, speak } from './lib/speech'
 import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSession } from './types'
 
-type Screen='loading'|'parent-auth'|'profiles'|'calendar'|'day'|'parent-gate'|'settings'
+type Screen='loading'|'parent-auth'|'family-pin'|'profiles'|'calendar'|'day'|'parent-gate'|'settings'
 const timerKey=(childId:string)=>`project-kavleen:timer:${childId}`
 const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${childId}:${activityId}:${new Date().toISOString().slice(0,10)}`
 
@@ -27,6 +29,8 @@ export default function App(){
  const [celebration,setCelebration]=useState<{activityId:string;message:string}|null>(null)
  const [timer,setTimer]=useState<TimerSession|null>(null)
  const [saveError,setSaveError]=useState('')
+ const [familyAccess,setFamilyAccess]=useState<FamilyAccessSession|null>(()=>readFamilyAccess())
+ const familyToken=tokenFromUrl()
  const celebrationTimer=useRef<number|null>(null)
  const selectedProfile=settings.children.find(c=>c.id===selectedChildId)??null
 
@@ -45,6 +49,7 @@ export default function App(){
  useEffect(()=>{
   let active=true
   const boot=async()=>{
+   if(familyToken){const remembered=readFamilyAccess();if(remembered?.token===familyToken){setFamilyAccess(remembered);setSettings(current=>({...current,children:remembered.children.map(c=>({id:c.id,name:c.name,dateOfBirth:'',emoji:c.emoji}))}));setScreen('profiles')}else setScreen('family-pin');return}
    if(!supabase){if(active)setScreen('parent-auth');return}
    const {data:{session}}=await supabase.auth.getSession()
    if(!active)return
@@ -55,8 +60,9 @@ export default function App(){
   return()=>{active=false;if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current)}
  },[loadSignedInFamily])
 
- const openParent=async()=>{if(!supabase){setScreen('parent-auth');return}const {data:{user}}=await supabase.auth.getUser();setScreen(user?.email?'parent-gate':'parent-auth')}
+ const openParent=async()=>{if(familyAccess){clearFamilyAccess();setFamilyAccess(null);window.history.replaceState({},'',import.meta.env.BASE_URL);setScreen('parent-auth');return}if(!supabase){setScreen('parent-auth');return}const {data:{user}}=await supabase.auth.getUser();setScreen(user?.email?'parent-gate':'parent-auth')}
  const startDay=async(profile:ChildProfile)=>{
+  if(familyAccess){try{const full=await loadFamilyChild(familyAccess,profile.id);setSettings(current=>({...current,children:current.children.map(c=>c.id===full.id?full:c)}));profile=full}catch(e){console.error(e);setSaveError('Could not open this child profile. Please check the family link and PIN.');return}}
   setSelectedChildId(profile.id); const today=localDateKey(); const done=await loadCompletions(profile.id,today); setCompletionDays({[today]:done}); setScreen('calendar')
   try{const raw=localStorage.getItem(timerKey(profile.id)); if(raw){const saved=JSON.parse(raw) as TimerSession;if(new Date(saved.endsAt).getTime()>Date.now())setTimer(saved)}}catch{}
   speak(`Hi ${profile.name}! Pochu is ready. Let's have a happy day!`,settings.voice)
@@ -77,7 +83,8 @@ export default function App(){
   const completedAt=new Date().toISOString(),message=pickEncouragement()
   setCompletions(current=>({...current,[activity.id]:completedAt}));setCelebration({activityId:activity.id,message});speak(message,settings.voice)
   if(celebrationTimer.current)window.clearTimeout(celebrationTimer.current);celebrationTimer.current=window.setTimeout(()=>setCelebration(null),1800)
-  await saveCompletion(selectedProfile.id,activity.id,completedAt,selectedDate)
+  if(familyAccess)await saveFamilyCompletion(familyAccess,selectedProfile.id,activity.id,completedAt,selectedDate)
+  else await saveCompletion(selectedProfile.id,activity.id,completedAt,selectedDate)
   const triggered=(selectedProfile.activities??[]).find(a=>a.triggerAfterId===activity.id)
   if(triggered)window.setTimeout(()=>speak(`Next, ${triggered.label}.`,settings.voice),1900)
  },[selectedProfile,completions,settings.voice,selectedDate])
@@ -95,6 +102,7 @@ export default function App(){
 
  if(screen==='loading')return <main className="pochu-loading"><div className="pochu-loading-bear">🐻</div><strong>POCHU</strong><span>Getting your family ready…</span></main>
  if(screen==='parent-auth')return <ParentAuth onReady={()=>void loadSignedInFamily()}/>
+ if(screen==='family-pin')return <FamilyPinGate token={familyToken} onUnlock={session=>{setFamilyAccess(session);setSettings(current=>({...current,children:session.children.map(c=>({id:c.id,name:c.name,dateOfBirth:'',emoji:c.emoji}))}));setScreen('profiles')}} onParent={()=>{window.history.replaceState({},'',import.meta.env.BASE_URL);setScreen('parent-auth')}}/>
  if(screen==='parent-gate')return <ParentGate onUnlock={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='settings')return <>{saveError&&<div className="global-save-error" role="alert">{saveError}</div>}<ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen(settings.children.length?'profiles':'settings')}/></>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>void openParent()}/>
