@@ -39,6 +39,12 @@ export async function saveFamilySettings(settings:ParentSettings):Promise<Parent
  if(!supabase)throw new Error('Supabase is not configured.')
  const familyId=await getFamilyId()
  const {error:ve}=await supabase.from('families').update({voice_settings:settings.voice}).eq('id',familyId);if(ve)throw ve
+ const {data:existingChildren,error:existingError}=await supabase.from('children').select('id').eq('family_id',familyId);if(existingError)throw existingError
+ const desiredIds=new Set(settings.children.map(child=>child.id).filter(isUuid))
+ const removedIds=(existingChildren??[]).map(child=>child.id as string).filter(id=>!desiredIds.has(id))
+ if(removedIds.length){
+  const {error:deleteError}=await supabase.from('children').delete().eq('family_id',familyId).in('id',removedIds);if(deleteError)throw deleteError
+ }
  const normalizedChildren:ChildProfile[]=[]
  for(const child of settings.children){
   let childId=child.id
