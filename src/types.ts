@@ -26,6 +26,7 @@ export type Activity = {
 export type ChildProfile = {
   id: string
   name: string
+  dateOfBirth: string
   emoji: string
   photoDataUrl?: string | null
   sections?: RoutineSection[]
