@@ -5,3 +5,4 @@ A picture-first daily activity tracker for young children. The web MVP focuses o
 ## Status
 
 Initial web application setup in progress.
+
