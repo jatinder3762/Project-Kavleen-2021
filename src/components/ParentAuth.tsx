@@ -7,16 +7,16 @@ const authRedirectUrl=()=>new URL(import.meta.env.BASE_URL,window.location.origi
 
 export function ParentAuth({onReady}:Props){
  const [mode,setMode]=useState<'login'|'register'>('login')
- const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
+ const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[needsConfirmation,setNeedsConfirmation]=useState(false)
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault()
   if(!supabase){setError('Supabase is not configured yet.');return}
-  setBusy(true);setError('')
+  setBusy(true);setError('');setNeedsConfirmation(false)
   const result=mode==='login'
    ?await supabase.auth.signInWithPassword({email,password})
    :await supabase.auth.signUp({email,password,options:{emailRedirectTo:authRedirectUrl()}})
   setBusy(false)
-  if(result.error){setError(result.error.message);return}
+  if(result.error){const unverified=mode==='login'&&/email.*(not )?confirmed|not.*verified/i.test(result.error.message);setNeedsConfirmation(unverified);setError(unverified?'Email not verified. Please verify your email before signing in. Check your inbox and spam folder.':result.error.message);return}
   if(mode==='register'&&!result.data.session){setError('Account created. Check your email to confirm it, then log in.');setMode('login');return}
   onReady()
  }
@@ -50,8 +50,8 @@ export function ParentAuth({onReady}:Props){
     {error&&<p className="auth-message" role="alert">{error}</p>}
     <button className="pochu-primary" disabled={busy}>{busy?'Please wait…':mode==='login'?'Log in':'Create parent account'}</button>
    </form>
-   {mode==='login'&&<button className="auth-switch" type="button" disabled={busy} onClick={resendConfirmation}>Resend confirmation email</button>}
-   <button className="auth-switch" type="button" onClick={()=>{setMode(mode==='login'?'register':'login');setError('')}}>{mode==='login'?'New to Pochu? Create an account':'Already have an account? Log in'}</button>
+   {mode==='login'&&needsConfirmation&&<button className="auth-switch" type="button" disabled={busy} onClick={resendConfirmation}>Resend confirmation email</button>}
+   <button className="auth-switch" type="button" onClick={()=>{setMode(mode==='login'?'register':'login');setError('');setNeedsConfirmation(false)}}>{mode==='login'?'New to Pochu? Create an account':'Already have an account? Log in'}</button>
    <p className="child-no-login">🔒 Children do not need an email or password.</p>
   </section>
  </main>

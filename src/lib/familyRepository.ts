@@ -53,9 +53,6 @@ export async function saveFamilySettings(settings:ParentSettings):Promise<Parent
  const {data:existingChildren,error:existingError}=await supabase.from('children').select('id').eq('family_id',familyId);if(existingError)throw existingError
  const desiredIds=new Set(settings.children.map(child=>child.id).filter(isUuid))
  const removedIds=(existingChildren??[]).map(child=>child.id as string).filter(id=>!desiredIds.has(id))
- if(removedIds.length){
-  const {error:deleteError}=await supabase.from('children').delete().eq('family_id',familyId).in('id',removedIds);if(deleteError)throw deleteError
- }
  const normalizedChildren:ChildProfile[]=[]
  for(const child of settings.children){
   let childId=child.id
@@ -93,6 +90,12 @@ export async function saveFamilySettings(settings:ParentSettings):Promise<Parent
    normalizedActivities[i]={...target,triggerAfterId:triggerId}
   }
   normalizedChildren.push({...child,id:childId,sections:normalizedSections,activities:normalizedActivities})
+ }
+ // Delete last: a validation/upsert failure must never remove an existing child first.
+ // The RPC performs its own authenticated family-membership check server-side.
+ for(const removedId of removedIds){
+  const {error}=await supabase.rpc('remove_family_child',{requested_child:removedId})
+  if(error)throw error
  }
  return {...settings,children:normalizedChildren}
 }

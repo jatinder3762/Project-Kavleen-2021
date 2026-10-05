@@ -36,7 +36,7 @@ export function ParentSettingsPage({settings,onSave,onCancel}:Props){
  const [formError,setFormError]=useState('')
  const [message,setMessage]=useState('')
  const [accessUrl,setAccessUrl]=useState('')
- const [accessPin,setAccessPin]=useState('1234')
+ const [accessPin,setAccessPin]=useState('')
  const [accessBusy,setAccessBusy]=useState(false)
  useEffect(()=>{const refresh=()=>setVoices(getEnglishVoices());refresh();window.speechSynthesis?.addEventListener('voiceschanged',refresh);return()=>window.speechSynthesis?.removeEventListener('voiceschanged',refresh)},[])
  const updateChild=(id:string,patch:Partial<ChildProfile>)=>setDraft(c=>({...c,children:c.children.map(x=>x.id===id?{...x,...patch}:x)}))
@@ -55,7 +55,7 @@ export function ParentSettingsPage({settings,onSave,onCancel}:Props){
   setMessage(`${child.name} marked for removal. Save settings to finish.`)
  }
  const choosePhoto=(id:string,file?:File)=>{if(!file||!file.type.startsWith('image/'))return;if(file.size>3*1024*1024){setMessage('Please choose a picture smaller than 3 MB.');return}const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'&&updateChild(id,{photoDataUrl:reader.result});reader.readAsDataURL(file)}
- const setupFamilyAccess=async()=>{setAccessBusy(true);try{const token=await createFamilyAccess();if(token){setAccessUrl(familyLink(token));setMessage('Family Access created with default PIN 1234. Please change it when ready.')}else setMessage('Family Access already exists. Regenerate the link to get a new shareable URL.')}catch(e){console.error(e);setMessage('Could not create Family Access. Apply the latest Supabase migration and try again.')}finally{setAccessBusy(false)}}
+ const setupFamilyAccess=async()=>{setAccessBusy(true);try{const token=await createFamilyAccess();if(token){setAccessUrl(familyLink(token));setMessage('Family Access created. The initial PIN is 1234; change it below before sharing if needed.')}else setMessage('Family Access already exists. Regenerate the link to get a new shareable URL.')}catch(e){console.error(e);setMessage('Could not create Family Access. Apply the latest Supabase migration and try again.')}finally{setAccessBusy(false)}}
  const regenerateAccess=async(changePin=false)=>{if(changePin&&!/^\\d{4,6}$/.test(accessPin)){setMessage('Family PIN must be 4 to 6 digits.');return}setAccessBusy(true);try{const token=await regenerateFamilyAccess(!changePin,changePin?accessPin:undefined);setAccessUrl(familyLink(token));setMessage(changePin?'New Family Link and PIN are ready.':'New Family Link is ready. Your PIN stayed the same.')}catch(e){console.error(e);setMessage('Could not regenerate Family Access.')}finally{setAccessBusy(false)}}
  const savePin=async()=>{if(!/^\\d{4,6}$/.test(accessPin)){setMessage('Family PIN must be 4 to 6 digits.');return}setAccessBusy(true);try{await changeFamilyPin(accessPin);setMessage('Family PIN changed. The Family Link stayed the same.')}catch(e){console.error(e);setMessage('Could not change the Family PIN.')}finally{setAccessBusy(false)}}
  const copyAccess=async()=>{if(!accessUrl)return;await navigator.clipboard.writeText(accessUrl);setMessage('Family Link copied.')}
