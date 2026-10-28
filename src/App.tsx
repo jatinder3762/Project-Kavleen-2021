@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { PlayWorld } from './components/PlayWorld'
 import { ActivityBoard } from './components/ActivityBoard'
 import { ChildCalendar } from './components/ChildCalendar'
 import { ParentSettingsPage } from './components/ParentSettingsPage'
@@ -13,7 +14,7 @@ import { loadFamilySettings, saveFamilySettings } from './lib/familyRepository'
 import { pickEncouragement, speak } from './lib/speech'
 import type { Activity, ChildProfile, CompletionMap, ParentSettings, TimerSession } from './types'
 
-type Screen='loading'|'parent-auth'|'profiles'|'calendar'|'day'|'parent-gate'|'settings'
+type Screen='loading'|'parent-auth'|'profiles'|'calendar'|'play'|'day'|'parent-gate'|'settings'
 const timerKey=(childId:string)=>`project-kavleen:timer:${childId}`
 const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${childId}:${activityId}:${new Date().toISOString().slice(0,10)}`
 
@@ -57,7 +58,7 @@ export default function App(){
 
  const openParent=async()=>{if(!supabase){setScreen('parent-auth');return}const {data:{user}}=await supabase.auth.getUser();setScreen(user?.email?'parent-gate':'parent-auth')}
  const startDay=async(profile:ChildProfile)=>{
-  setSelectedChildId(profile.id); const today=localDateKey(); const done=await loadCompletions(profile.id,today); setCompletionDays({[today]:done}); setScreen('calendar')
+  setSelectedChildId(profile.id); const today=localDateKey(); const done=await loadCompletions(profile.id,today); setCompletionDays({[today]:done}); setScreen('play')
   try{const raw=localStorage.getItem(timerKey(profile.id)); if(raw){const saved=JSON.parse(raw) as TimerSession;if(new Date(saved.endsAt).getTime()>Date.now())setTimer(saved)}}catch{}
   speak(`Hi ${profile.name}! Pochu is ready. Let's have a happy day!`,settings.voice)
  }
@@ -98,6 +99,7 @@ export default function App(){
  if(screen==='parent-gate')return <ParentGate onUnlock={()=>setScreen('settings')} onCancel={()=>setScreen('profiles')}/>
  if(screen==='settings')return <>{saveError&&<div className="global-save-error" role="alert">{saveError}</div>}<ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen(settings.children.length?'profiles':'settings')}/></>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>void openParent()}/>
+ if(screen==='play')return <PlayWorld name={selectedProfile.name} voice={settings.voice !== undefined} onBack={()=>setScreen('calendar')}/>
  if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} onBack={()=>setScreen('profiles')} onSettings={()=>void openParent()}/>
  const timerActivity=timer?(selectedProfile.activities??[]).find(a=>a.id===timer.activityId):undefined
  return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} selectedDate={selectedDate} onBack={()=>setScreen('calendar')} onSettings={()=>void openParent()}/>
