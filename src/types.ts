@@ -31,6 +31,7 @@ export type ChildProfile = {
   photoDataUrl?: string | null
   sections?: RoutineSection[]
   activities?: Activity[]
+  scheduleDates?: Record<string, string[]>
 }
 
 export type VoiceSettings = {
