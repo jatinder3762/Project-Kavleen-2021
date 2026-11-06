@@ -10,7 +10,7 @@ export function ActivityBoard({ profile, completions, celebration, onComplete, o
   const sections=(profile.sections ?? []).slice().sort((a,b)=>a.order-b.order)
   const activities=profile.activities ?? []
   const chosen=new Date(selectedDate+'T12:00:00'), day=chosen.getDay(), today=new Date(); today.setHours(0,0,0,0); const readOnly=chosen.getTime()<today.getTime()
-  const visible=activities.filter(a=>a.enabled!==false && (!a.days?.length || a.days.includes(day)) && (a.type!=='triggered' || !a.triggerAfterId || Boolean(completions[a.triggerAfterId])))
+  const visible=activities.filter(a=>a.enabled!==false && (profile.scheduleDates?.[selectedDate]?profile.scheduleDates[selectedDate].includes(a.id):(!a.days?.length || a.days.includes(day))) && (a.type!=='triggered' || !a.triggerAfterId || Boolean(completions[a.triggerAfterId])))
   const completeCount=visible.filter(a=>Boolean(completions[a.id])).length
   return <main className="day-screen"><nav className="screen-nav"><button onClick={onBack}>← Calendar</button><button onClick={onSettings}>⚙️ Settings</button></nav>
     <header className="day-header">
