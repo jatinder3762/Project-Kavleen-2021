@@ -21,6 +21,7 @@ const usageKey=(childId:string,activityId:string)=>`project-kavleen:usage:${chil
 
 export default function App(){
  const [screen,setScreen]=useState<Screen>('loading')
+ const [playReturn,setPlayReturn]=useState<'day'|'calendar'>('calendar')
  const [settings,setSettings]=useState<ParentSettings>(emptyParentSettings)
  const [selectedChildId,setSelectedChildId]=useState<string|null>(null)
  const [completions,setCompletions]=useState<CompletionMap>({})
@@ -111,9 +112,9 @@ export default function App(){
  if(screen==='settings')return <>{saveError&&<div className="global-save-error" role="alert">{saveError}</div>}<ParentSettingsPage settings={settings} onSave={updateSettings} onCancel={()=>setScreen(settings.children.length?'profiles':'settings')}/></>
  if(screen==='profiles'||!selectedProfile)return <ProfilePicker profiles={settings.children} onSelect={startDay} onOpenSettings={()=>void openParent()}/>
  if(screen==='schedule')return <>{saveError&&<div role="alert" className="global-save-error">{saveError}</div>}<ScheduleEditor key={scheduleDate} profile={selectedProfile} date={scheduleDate} onSave={saveSchedule} onCancel={()=>setScreen('calendar')}/></>
- if(screen==='play')return <PlayWorld name={selectedProfile.name} voice={settings.voice !== undefined} onBack={()=>setScreen('calendar')}/>
+ if(screen==='play')return <PlayWorld name={selectedProfile.name} voice={settings.voice !== undefined} onBack={()=>setScreen(playReturn)}/>
  if(screen==='calendar')return <ChildCalendar profile={selectedProfile} completionDays={completionDays} onSelectDate={openDate} onManageDate={requestSchedule} onBack={()=>setScreen('profiles')} onSettings={()=>void openParent()}/>
  const timerActivity=timer?(selectedProfile.activities??[]).find(a=>a.id===timer.activityId):undefined
- return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} selectedDate={selectedDate} onBack={()=>setScreen('calendar')} onSettings={()=>void openParent()}/>
+ return <><ActivityBoard profile={selectedProfile} completions={completions} celebration={celebration} onComplete={completeActivity} onStartTimer={startTimer} onFunGames={()=>{setPlayReturn('day');setScreen('play')}} selectedDate={selectedDate} onBack={()=>setScreen('calendar')} onSettings={()=>void openParent()}/>
   {timer&&timerActivity&&<TimerOverlay activity={timerActivity} session={timer} voice={settings.voice} onFinish={finishTimer} onClose={()=>setTimer(null)}/>}</>
 }
